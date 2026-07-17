@@ -224,6 +224,59 @@ describe("multiplayer answer helpers", () => {
         expect(mapQuestions[1]).not.toBe(submittedByAnotherSeeker.question);
     });
 
+    it("lets the originating seeker toggle a pending binary result without moving its locked pin", () => {
+        const pending: GameQuestion = {
+            id: "pending-binary",
+            senderPlayerId: "seeker-one",
+            clientQuestionKey: radius.key,
+            question: structuredClone(radius),
+            status: "pending",
+            answer: null,
+            createdAt: "2026-07-17T00:00:00.000Z",
+            answeredAt: null,
+        };
+        const snapshot: GameSnapshot = {
+            game: {
+                code: "ABC234",
+                createdAt: "2026-07-17T00:00:00.000Z",
+            },
+            players: [],
+            questions: [pending],
+        };
+        const localPending = structuredClone(radius);
+        localPending.data.lat = 9;
+        localPending.data.lng = 10;
+        localPending.data.within = false;
+        localPending.data.drag = false;
+
+        const ownerMapQuestion = selectMapQuestions(
+            "seeker",
+            [localPending],
+            snapshot,
+            {},
+            "seeker-one",
+        )[0];
+        expect(ownerMapQuestion).toMatchObject({
+            data: {
+                lat: radius.data.lat,
+                lng: radius.data.lng,
+                within: false,
+                drag: false,
+            },
+        });
+
+        const otherSeekerMapQuestion = selectMapQuestions(
+            "seeker",
+            [],
+            snapshot,
+            {},
+            "seeker-two",
+        )[0];
+        expect(otherSeekerMapQuestion).toMatchObject({
+            data: { within: true, drag: false },
+        });
+    });
+
     it("prevents sending a stale answer while automatic calculation is running", () => {
         const preview = { type: "radius", within: true } as const;
 

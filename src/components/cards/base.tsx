@@ -142,7 +142,7 @@ export const QuestionCard = ({
                                     size="sm"
                                     title={
                                         submissionState === "blocked"
-                                            ? "Wait for your pending question to be answered"
+                                            ? "Wait for the pending question to be answered"
                                             : "Send question to hider"
                                     }
                                     disabled={submissionState !== "ready"}

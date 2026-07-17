@@ -178,10 +178,20 @@ export function selectMapQuestions(
         );
         const authoritativeQuestions = snapshot.questions.flatMap((item) => {
             if (item.question.id === "photo") return [];
+            const localPending =
+                item.status === "pending" && item.senderPlayerId === playerId
+                    ? localGeographicQuestions.find(
+                          (question) =>
+                              question.key === item.clientQuestionKey &&
+                              question.id === item.question.id,
+                      )
+                    : undefined;
             const question =
                 item.status === "answered" && item.answer
                     ? applyAnswer(item.question, item.answer)
-                    : cloneQuestion(item.question);
+                    : localPending
+                      ? applyAnswer(item.question, extractAnswer(localPending))
+                      : cloneQuestion(item.question);
             if ("drag" in question.data)
                 Object.assign(question.data, { drag: false });
             return [question];
