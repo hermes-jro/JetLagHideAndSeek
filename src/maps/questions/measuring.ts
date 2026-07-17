@@ -14,6 +14,7 @@ import {
 import {
     fetchCoastline,
     fetchElectoralBoundaries,
+    fetchExpressways,
     findAdminBoundary,
     findPlacesInZone,
     findPlacesSpecificInZone,
@@ -179,6 +180,17 @@ export const determineMeasuringBoundary = async (
                     ]),
                 )!,
             ];
+        }
+        case "expressway": {
+            const expressways = await fetchExpressways();
+            const lineFeatures = expressways.features.filter(
+                (feature: any) =>
+                    feature.geometry &&
+                    (feature.geometry.type === "LineString" ||
+                        feature.geometry.type === "MultiLineString"),
+            );
+
+            return turf.combine(turf.featureCollection(lineFeatures)).features;
         }
         case "airport":
             return airports.features.map((f) => turf.point(f.geometry.coordinates));
