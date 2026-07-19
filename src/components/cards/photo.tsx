@@ -26,6 +26,7 @@ export function PhotoQuestionComponent({
     sub,
     displayIndex,
     className,
+    status,
     footer,
 }: {
     data: PhotoQuestion;
@@ -34,6 +35,7 @@ export function PhotoQuestionComponent({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) {
     useStore(triggerLocalRefresh);
@@ -64,6 +66,7 @@ export function PhotoQuestionComponent({
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed;
             }}
+            status={status}
             footer={footer}
         >
             <SidebarMenuItem>

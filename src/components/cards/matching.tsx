@@ -43,6 +43,7 @@ export const MatchingQuestionComponent = ({
     displayIndex,
     className,
     resultEditable,
+    status,
     footer,
 }: {
     data: MatchingQuestion;
@@ -51,6 +52,7 @@ export const MatchingQuestionComponent = ({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) => {
     useStore(triggerLocalRefresh);
@@ -181,6 +183,7 @@ export const MatchingQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            status={status}
             footer={footer}
         >
             <CustomInitDialog

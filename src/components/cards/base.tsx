@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { LockIcon, UnlockIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { VscChevronDown, VscShare, VscTrash } from "react-icons/vsc";
 import { toast } from "react-toastify";
 
@@ -32,11 +32,17 @@ import {
     SidebarMenu,
 } from "@/components/ui/sidebar-l";
 import {
+    type GameQuestion,
     gameSession,
     gameSnapshot,
     questionSubmissionState,
     sendQuestion,
 } from "@/game/multiplayer";
+import {
+    initialQuestionCollapsed,
+    type QuestionPresentationStatus,
+    shouldAutoCollapseQuestion,
+} from "@/game/questionPresentation";
 import { isLoading, questions } from "@/lib/context";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +56,7 @@ export const QuestionCard = ({
     locked,
     setLocked,
     setCollapsed,
+    status,
     footer,
 }: {
     children: React.ReactNode;
@@ -61,9 +68,9 @@ export const QuestionCard = ({
     locked?: boolean;
     setLocked?: (locked: boolean) => void;
     setCollapsed?: (collapsed: boolean) => void;
+    status?: GameQuestion["status"];
     footer?: React.ReactNode;
 }) => {
-    const [isCollapsed, setIsCollapsed] = useState(collapsed ?? false);
     const $questions = useStore(questions);
     const $isLoading = useStore(isLoading);
     const $gameSession = useStore(gameSession);
@@ -76,10 +83,32 @@ export const QuestionCard = ({
                   questionKey,
               )
             : "ready";
+    const presentationStatus: QuestionPresentationStatus =
+        status ??
+        (submissionState === "pending" || submissionState === "answered"
+            ? submissionState
+            : undefined);
+    const [isCollapsed, setIsCollapsed] = useState(() =>
+        initialQuestionCollapsed(collapsed, presentationStatus),
+    );
+    const previousStatus = useRef(presentationStatus);
     const isRemoteTranscript =
         $gameSession?.player.role === "seeker" && Boolean(sub);
     const copyButtonRef = useRef<HTMLButtonElement>(null);
     const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+
+    useEffect(() => {
+        if (
+            shouldAutoCollapseQuestion(
+                previousStatus.current,
+                presentationStatus,
+            )
+        ) {
+            setIsCollapsed(true);
+            setCollapsed?.(true);
+        }
+        previousStatus.current = presentationStatus;
+    }, [presentationStatus, setCollapsed]);
 
     const toggleCollapse = () => {
         if (setCollapsed) {
@@ -108,12 +137,12 @@ export const QuestionCard = ({
                         <span>
                             {label} {sub && `(${sub})`}
                         </span>
-                        {submissionState === "pending" && (
+                        {presentationStatus === "pending" && (
                             <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-300">
                                 Pending
                             </span>
                         )}
-                        {submissionState === "answered" && (
+                        {presentationStatus === "answered" && (
                             <span className="ml-2 rounded bg-green-500/20 px-2 py-0.5 text-xs font-semibold text-green-300">
                                 Answered
                             </span>

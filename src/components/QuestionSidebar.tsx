@@ -57,6 +57,7 @@ function renderQuestion(
     displayIndex?: number,
     resultEditable = false,
     footer?: React.ReactNode,
+    status?: GameQuestion["status"],
 ) {
     const props = {
         questionKey: question.key,
@@ -65,6 +66,7 @@ function renderQuestion(
         displayIndex,
         resultEditable,
         footer: footer,
+        status,
     };
     switch (question.id) {
         case "radius":
@@ -270,6 +272,7 @@ export const QuestionSidebar = () => {
                         index + 1,
                         resultEditable,
                         footer,
+                        gameQuestion.status,
                     );
                 })}
             </SidebarContent>

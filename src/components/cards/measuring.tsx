@@ -39,6 +39,7 @@ export const MeasuringQuestionComponent = ({
     displayIndex,
     className,
     resultEditable,
+    status,
     footer,
 }: {
     data: MeasuringQuestion;
@@ -47,6 +48,7 @@ export const MeasuringQuestionComponent = ({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) => {
     useStore(triggerLocalRefresh);
@@ -140,6 +142,7 @@ export const MeasuringQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            status={status}
             footer={footer}
         >
             <CustomInitDialog

@@ -24,6 +24,7 @@ export const ThermometerQuestionComponent = ({
     displayIndex,
     className,
     resultEditable,
+    status,
     footer,
 }: {
     data: ThermometerQuestion;
@@ -32,6 +33,7 @@ export const ThermometerQuestionComponent = ({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) => {
     useStore(triggerLocalRefresh);
@@ -58,6 +60,7 @@ export const ThermometerQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            status={status}
             footer={footer}
         >
             <LatitudeLongitude

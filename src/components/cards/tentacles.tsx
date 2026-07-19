@@ -39,6 +39,7 @@ export const TentacleQuestionComponent = ({
     displayIndex,
     className,
     resultEditable,
+    status,
     footer,
 }: {
     data: TentacleQuestion;
@@ -47,6 +48,7 @@ export const TentacleQuestionComponent = ({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) => {
     const $questions = useStore(questions);
@@ -72,6 +74,7 @@ export const TentacleQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            status={status}
             footer={footer}
         >
             <SidebarMenuItem>

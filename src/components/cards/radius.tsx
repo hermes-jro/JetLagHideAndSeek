@@ -28,6 +28,7 @@ export const RadiusQuestionComponent = ({
     displayIndex,
     className,
     resultEditable,
+    status,
     footer,
 }: {
     data: RadiusQuestion;
@@ -36,6 +37,7 @@ export const RadiusQuestionComponent = ({
     displayIndex?: number;
     className?: string;
     resultEditable?: boolean;
+    status?: "pending" | "answered";
     footer?: React.ReactNode;
 }) => {
     useStore(triggerLocalRefresh);
@@ -62,6 +64,7 @@ export const RadiusQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            status={status}
             footer={footer}
         >
             <SidebarMenuItem>
