@@ -636,7 +636,7 @@ export async function buildApp(
             from: responderName,
             title: "Answer received",
             body: answerNotificationBody(question, answer),
-            url: `/?game=${encodeURIComponent(game.code)}&question=${encodeURIComponent(questionId)}`,
+            url: `/?game=${encodeURIComponent(game.code)}`,
         };
         for (const seeker of seekers) {
             enqueuePush(
@@ -990,7 +990,7 @@ export async function buildApp(
                     from: player.name,
                     title: "New question",
                     body: `New ${parsed.data.question.id} question from ${player.name}`,
-                    url: `/?game=${encodeURIComponent(game.code)}&question=${encodeURIComponent(question.id)}`,
+                    url: `/?game=${encodeURIComponent(game.code)}`,
                 });
             }
             db.exec("COMMIT");

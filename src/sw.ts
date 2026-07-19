@@ -52,6 +52,8 @@ self.addEventListener("push", (event: PushEvent) => {
                 !["question_received", "answer_received"].includes(
                     payload.kind,
                 ) ||
+                typeof payload.gameCode !== "string" ||
+                !/^[A-HJ-NP-Z2-9]{6}$/.test(payload.gameCode) ||
                 typeof payload.questionId !== "string" ||
                 typeof payload.title !== "string" ||
                 typeof payload.body !== "string" ||
@@ -60,6 +62,8 @@ self.addEventListener("push", (event: PushEvent) => {
                 target.pathname !== "/"
             )
                 return;
+            const gameTarget = new URL("/", self.location.origin);
+            gameTarget.searchParams.set("game", payload.gameCode);
             const options: NotificationOptions & {
                 image: string;
                 vibrate: number[];
@@ -73,7 +77,9 @@ self.addEventListener("push", (event: PushEvent) => {
                 renotify: true,
                 silent: false,
                 tag: `${payload.kind}:${payload.questionId}`,
-                data: { url: `${target.pathname}${target.search}` },
+                data: {
+                    url: `${gameTarget.pathname}${gameTarget.search}`,
+                },
             };
             await self.registration.showNotification(
                 payload.title.slice(0, 80),

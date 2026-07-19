@@ -149,6 +149,7 @@ describe("multiplayer server", () => {
             kind: "question_received",
             gameCode: game.code,
             questionId: submittedQuestion.id,
+            url: `/?game=${game.code}`,
         });
 
         const stillPending = await app.inject({
@@ -221,6 +222,7 @@ describe("multiplayer server", () => {
                 questionId: submittedQuestion.id,
                 title: "Answer received",
                 body: "1.6km radar: Outside",
+                url: `/?game=${game.code}`,
             });
         }
     });

@@ -76,12 +76,11 @@ export function MultiplayerPanel() {
             .catch(() => undefined);
         const search = new URLSearchParams(window.location.search);
         const linkedGame = search.get("game");
-        if (linkedGame) {
+        if (linkedGame && session?.code !== linkedGame.toUpperCase()) {
             setCode(linkedGame.toUpperCase());
             setMode("join");
             setOpen(true);
         }
-        if (search.has("question")) setOpen(true);
     }, []);
 
     useEffect(() => {
@@ -159,18 +158,6 @@ export function MultiplayerPanel() {
         };
     }, [hiderLocation, session?.player.role, snapshot]);
 
-    useEffect(() => {
-        if (!open || !snapshot) return;
-        const questionId = new URLSearchParams(window.location.search).get(
-            "question",
-        );
-        if (!questionId) return;
-        requestAnimationFrame(() => {
-            document
-                .getElementById(`game-question-${questionId}`)
-                ?.scrollIntoView({ behavior: "smooth", block: "center" });
-        });
-    }, [open, snapshot]);
 
     useEffect(() => {
         if (!open) return;
