@@ -108,8 +108,10 @@ export function MultiplayerPanel() {
     }, [joinHiderUnavailable, role]);
 
     useEffect(() => {
-        const showAnswerNotification = () =>
-            toast.info("Your question has been answered");
+        const showAnswerNotification = (event: Event) => {
+            const detail = (event as CustomEvent<{ message: string }>).detail;
+            toast.info(detail.message);
+        };
         window.addEventListener(
             "multiplayer:answer-received",
             showAnswerNotification,

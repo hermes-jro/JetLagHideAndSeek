@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+    answeredQuestionNotificationText,
     applyAnswer,
     applyPersistedAnswer,
     calculateHiderAnswerPreviews,
@@ -437,6 +438,26 @@ describe("multiplayer answer helpers", () => {
         ).toBe(false);
         expect(shouldNotifyAnsweredQuestion(seekerSession, after, after)).toBe(
             false,
+        );
+    });
+
+    it("describes the answered question and its result in notifications", () => {
+        const answered: GameQuestion = {
+            id: "answer-copy",
+            senderPlayerId: "originating-seeker",
+            clientQuestionKey: 1,
+            question: {
+                ...structuredClone(radius),
+                data: { ...structuredClone(radius.data), radius: 1.6 },
+            },
+            status: "answered",
+            answer: { type: "radius", within: false },
+            createdAt: "2026-07-16T00:00:00.000Z",
+            answeredAt: "2026-07-16T00:01:00.000Z",
+        };
+
+        expect(answeredQuestionNotificationText(answered)).toBe(
+            "1.6km radar: Outside",
         );
     });
 

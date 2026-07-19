@@ -20,7 +20,7 @@ const radiusQuestion = {
     data: {
         lat: 1.3,
         lng: 103.8,
-        radius: 5,
+        radius: 1.6,
         unit: "kilometers",
         within: true,
         drag: true,
@@ -219,6 +219,8 @@ describe("multiplayer server", () => {
                 kind: "answer_received",
                 gameCode: game.code,
                 questionId: submittedQuestion.id,
+                title: "Answer received",
+                body: "1.6km radar: Outside",
             });
         }
     });

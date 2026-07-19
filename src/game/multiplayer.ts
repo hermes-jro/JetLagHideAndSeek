@@ -241,6 +241,48 @@ export function shouldNotifyAnsweredQuestion(
     );
 }
 
+const notificationUnit = (unit: string) =>
+    ({ kilometers: "km", miles: "mi", meters: "m" })[unit] ?? unit;
+
+const notificationType = (value: string) =>
+    value
+        .replace(/-full$/, "")
+        .replaceAll("_", " ")
+        .replaceAll("-", " ");
+
+export function answeredQuestionNotificationText(item: GameQuestion) {
+    const answer = item.answer;
+    if (!answer) return "Question answered";
+
+    switch (item.question.id) {
+        case "radius":
+            return `${item.question.data.radius}${notificationUnit(item.question.data.unit)} radar: ${answer.type === "radius" && answer.within ? "Inside" : "Outside"}`;
+        case "thermometer":
+            return `Thermometer: ${answer.type === "thermometer" && answer.warmer ? "Warmer" : "Colder"}`;
+        case "tentacles": {
+            const location =
+                answer.type === "tentacles" ? answer.location : false;
+            const result =
+                (location && (location as any).properties?.name) ||
+                (location ? "Location found" : "No matching location");
+            return `${item.question.data.radius}${notificationUnit(item.question.data.unit)} ${notificationType(item.question.data.locationType)} tentacles: ${result}`;
+        }
+        case "matching": {
+            const result =
+                answer.type === "matching" && answer.lengthComparison
+                    ? notificationType(answer.lengthComparison)
+                    : answer.type === "matching" && answer.same
+                      ? "Same"
+                      : "Different";
+            return `${notificationType(item.question.data.type)} matching: ${result}`;
+        }
+        case "measuring":
+            return `${notificationType(item.question.data.type)} measuring: ${answer.type === "measuring" && answer.hiderCloser ? "Hider closer" : "Seeker closer"}`;
+        case "photo":
+            return `${notificationType(item.question.data.subject)} photo: ${answer.type === "photo" && answer.response === "photo" ? "Photo received" : "Cannot answer"}`;
+    }
+}
+
 export const gameSession = persistentAtom<GameSession | null>(
     "multiplayerSession",
     null,
@@ -531,7 +573,10 @@ export async function connectGame() {
         ) {
             window.dispatchEvent(
                 new CustomEvent("multiplayer:answer-received", {
-                    detail: { questionId: item.id },
+                    detail: {
+                        questionId: item.id,
+                        message: answeredQuestionNotificationText(item),
+                    },
                 }),
             );
         }

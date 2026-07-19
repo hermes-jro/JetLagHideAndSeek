@@ -396,6 +396,68 @@ function errorReply(reply: any, status: number, code: string, message: string) {
     return reply.code(status).send({ error: { code, message } });
 }
 
+const shortUnit = (unit: string) =>
+    ({ kilometers: "km", miles: "mi", meters: "m" })[unit] ?? unit;
+
+const readableType = (value: string) =>
+    value
+        .replace(/-full$/, "")
+        .replaceAll("_", " ")
+        .replaceAll("-", " ");
+
+function questionNotificationLabel(question: any) {
+    switch (question.id) {
+        case "radius":
+            return `${question.data.radius}${shortUnit(question.data.unit)} radar`;
+        case "thermometer":
+            return "Thermometer";
+        case "tentacles":
+            return `${question.data.radius}${shortUnit(question.data.unit)} ${readableType(question.data.locationType)} tentacles`;
+        case "matching":
+            return `${readableType(question.data.type)} matching`;
+        case "measuring":
+            return `${readableType(question.data.type)} measuring`;
+        case "photo":
+            return `${readableType(question.data.subject)} photo`;
+        default:
+            return "question";
+    }
+}
+
+function answerNotificationBody(question: any, answer: any) {
+    let result = "Answered";
+    switch (question.id) {
+        case "radius":
+            result = answer.within ? "Inside" : "Outside";
+            break;
+        case "thermometer":
+            result = answer.warmer ? "Warmer" : "Colder";
+            break;
+        case "tentacles":
+            result =
+                answer.location?.properties?.name ??
+                (answer.location ? "Location found" : "No matching location");
+            break;
+        case "matching":
+            result = answer.lengthComparison
+                ? readableType(answer.lengthComparison)
+                : answer.same
+                  ? "Same"
+                  : "Different";
+            break;
+        case "measuring":
+            result = answer.hiderCloser ? "Hider closer" : "Seeker closer";
+            break;
+        case "photo":
+            result =
+                answer.response === "photo"
+                    ? "Photo received"
+                    : "Cannot answer";
+            break;
+    }
+    return `${questionNotificationLabel(question)}: ${result}`;
+}
+
 export async function buildApp(
     options: BuildAppOptions,
 ): Promise<MultiplayerApp> {
@@ -557,7 +619,8 @@ export async function buildApp(
     const enqueueAnswerPushToSeekers = (
         game: any,
         questionId: string,
-        questionType: string,
+        question: any,
+        answer: any,
         responderName: string,
     ) => {
         const seekers = db
@@ -569,10 +632,10 @@ export async function buildApp(
             kind: "answer_received",
             gameCode: game.code,
             questionId,
-            questionType,
+            questionType: question.id,
             from: responderName,
             title: "Answer received",
-            body: `${responderName} answered a ${questionType} question`,
+            body: answerNotificationBody(question, answer),
             url: `/?game=${encodeURIComponent(game.code)}&question=${encodeURIComponent(questionId)}`,
         };
         for (const seeker of seekers) {
@@ -1251,7 +1314,8 @@ export async function buildApp(
                 enqueueAnswerPushToSeekers(
                     game,
                     question.id,
-                    "photo",
+                    JSON.parse(question.question_json),
+                    answer,
                     player.name,
                 );
                 db.exec("COMMIT");
@@ -1417,7 +1481,8 @@ export async function buildApp(
                 enqueueAnswerPushToSeekers(
                     game,
                     question.id,
-                    original.id,
+                    original,
+                    parsed.data.answer,
                     player.name,
                 );
                 db.exec("COMMIT");
