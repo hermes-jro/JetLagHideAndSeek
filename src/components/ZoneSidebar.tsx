@@ -43,6 +43,7 @@ import {
     holedMask,
     lngLatToText,
     mergeDuplicateStation,
+    ONE_METER_IN_DEGREES,
     safeUnion,
 } from "@/maps/geo-utils";
 
@@ -57,7 +58,6 @@ import {
     CommandList,
 } from "./ui/command";
 import { Label } from "./ui/label";
-
 import { ScrollToTop } from "./ui/scroll-to-top";
 import { MENU_ITEM_CLASSNAME } from "./ui/sidebar-l";
 
@@ -202,7 +202,7 @@ export const ZoneSidebar = () => {
 
             const unionized = safeUnion(
                 turf.simplify($questionFinishedMapData, {
-                    tolerance: 0.001,
+                    tolerance: ONE_METER_IN_DEGREES,
                 }),
             );
 

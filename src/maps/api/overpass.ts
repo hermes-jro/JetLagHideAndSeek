@@ -8,7 +8,7 @@ import {
     mapGeoLocation,
 } from "@/lib/context";
 import { getLineNamesForStationName, loadSgmrt } from "@/maps/api/sgmrt";
-import { safeUnion } from "@/maps/geo-utils";
+import { ONE_METER_IN_DEGREES, safeUnion } from "@/maps/geo-utils";
 
 import { cacheFetch } from "./cache";
 import {
@@ -587,7 +587,7 @@ export const determineMapBoundaries = async () => {
 
     if (turf.coordAll(mapGeoData).length > 10000) {
         turf.simplify(mapGeoData, {
-            tolerance: 0.0005,
+            tolerance: ONE_METER_IN_DEGREES,
             highQuality: true,
             mutate: true,
         });

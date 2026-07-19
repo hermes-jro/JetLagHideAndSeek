@@ -686,7 +686,7 @@ const tutorialSteps: TutorialStep[] = [
                 <br />• Official government boundaries imported from
                 authoritative sources
                 <br />• High accuracy for major administrative divisions
-                <br />• Simplified to ±100 meters for browser performance
+                <br />• Simplified to ±1 meter for browser performance
                 <br />• Some disputed or changing boundaries may be outdated
                 <br />
                 <br />
