@@ -5,7 +5,7 @@ export {};
 declare const self: ServiceWorkerGlobalScope;
 
 interface PushPayload {
-    kind: "question_received" | "answer_received";
+    kind: "question_received" | "answer_received" | "answer_due_soon";
     gameCode: string;
     questionId: string;
     title: string;
@@ -49,9 +49,11 @@ self.addEventListener("push", (event: PushEvent) => {
                 return;
             }
             if (
-                !["question_received", "answer_received"].includes(
-                    payload.kind,
-                ) ||
+                ![
+                    "question_received",
+                    "answer_received",
+                    "answer_due_soon",
+                ].includes(payload.kind) ||
                 typeof payload.gameCode !== "string" ||
                 !/^[A-HJ-NP-Z2-9]{6}$/.test(payload.gameCode) ||
                 typeof payload.questionId !== "string" ||

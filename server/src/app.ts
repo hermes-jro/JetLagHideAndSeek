@@ -351,7 +351,7 @@ function migrate(db: DatabaseSync) {
             game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
             target_player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
             question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-            kind TEXT NOT NULL CHECK (kind IN ('question_received', 'answer_received')),
+            kind TEXT NOT NULL CHECK (kind IN ('question_received', 'answer_received', 'answer_due_soon')),
             payload_json TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'dead')),
             attempts INTEGER NOT NULL DEFAULT 0,
@@ -365,6 +365,49 @@ function migrate(db: DatabaseSync) {
         DROP INDEX IF EXISTS one_pending_question_per_seeker;
         CREATE INDEX IF NOT EXISTS pending_push_deliveries ON push_deliveries(status, next_attempt_at);
     `);
+
+    const pushDeliveryTable = db
+        .prepare(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'push_deliveries'",
+        )
+        .get() as { sql?: string } | undefined;
+    if (!pushDeliveryTable?.sql?.includes("answer_due_soon")) {
+        db.exec("BEGIN IMMEDIATE");
+        try {
+            db.exec(`
+                ALTER TABLE push_deliveries RENAME TO push_deliveries_legacy;
+                CREATE TABLE push_deliveries (
+                    id TEXT PRIMARY KEY,
+                    subscription_id TEXT REFERENCES push_subscriptions(id) ON DELETE SET NULL,
+                    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                    target_player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                    question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                    kind TEXT NOT NULL CHECK (kind IN ('question_received', 'answer_received', 'answer_due_soon')),
+                    payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'dead')),
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    next_attempt_at TEXT NOT NULL,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL,
+                    sent_at TEXT,
+                    UNIQUE (subscription_id, kind, question_id)
+                );
+                INSERT INTO push_deliveries
+                    (id, subscription_id, game_id, target_player_id, question_id, kind,
+                     payload_json, status, attempts, next_attempt_at, last_error, created_at, sent_at)
+                SELECT id, subscription_id, game_id, target_player_id, question_id, kind,
+                       payload_json, status, attempts, next_attempt_at, last_error, created_at, sent_at
+                FROM push_deliveries_legacy;
+                DROP TABLE push_deliveries_legacy;
+                CREATE INDEX pending_push_deliveries
+                    ON push_deliveries(status, next_attempt_at);
+            `);
+            db.exec("COMMIT");
+        } catch (error) {
+            db.exec("ROLLBACK");
+            throw error;
+        }
+    }
 
     const questionColumns = db
         .prepare("PRAGMA table_info(questions)")
@@ -456,6 +499,22 @@ function answerNotificationBody(question: any, answer: any) {
             break;
     }
     return `${questionNotificationLabel(question)}: ${result}`;
+}
+
+function answerDueSoonPushPayload(
+    gameCode: string,
+    questionId: string,
+    question: any,
+) {
+    return {
+        kind: "answer_due_soon",
+        gameCode,
+        questionId,
+        questionType: question?.id ?? "unknown",
+        title: "1 minute left",
+        body: `1 minute left to answer ${questionNotificationLabel(question)}`,
+        url: `/?game=${encodeURIComponent(gameCode)}`,
+    };
 }
 
 export async function buildApp(
@@ -591,8 +650,9 @@ export async function buildApp(
         game: any,
         targetPlayerId: string,
         questionId: string,
-        kind: "question_received" | "answer_received",
+        kind: "question_received" | "answer_received" | "answer_due_soon",
         payload: Record<string, unknown>,
+        nextAttemptAt?: string,
     ) => {
         const subscriptions = db
             .prepare("SELECT id FROM push_subscriptions WHERE player_id = ?")
@@ -601,7 +661,7 @@ export async function buildApp(
             (id, subscription_id, game_id, target_player_id, question_id, kind, payload_json, next_attempt_at, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
         for (const subscription of subscriptions) {
-            const timestamp = now();
+            const timestamp = clock();
             insert.run(
                 randomUUID(),
                 subscription.id,
@@ -610,7 +670,7 @@ export async function buildApp(
                 questionId,
                 kind,
                 JSON.stringify(payload),
-                timestamp,
+                nextAttemptAt ?? timestamp,
                 timestamp,
             );
         }
@@ -658,16 +718,62 @@ export async function buildApp(
         ).run(reason, subscriptionId);
     };
 
+    const cancelAnswerDueSoonPush = (questionId: string) => {
+        db.prepare(
+            "UPDATE push_deliveries SET status = 'dead', last_error = 'question answered' WHERE question_id = ? AND kind = 'answer_due_soon' AND status = 'pending'",
+        ).run(questionId);
+    };
+
+    const enqueueAnswerDueSoonPushes = () => {
+        const timestamp = clock();
+        const threshold = new Date(
+            Date.parse(timestamp) + 60_000,
+        ).toISOString();
+        const reminders = db
+            .prepare(
+                `SELECT q.id AS question_id, q.question_json,
+                        g.id AS game_id, g.code AS game_code,
+                        h.id AS hider_player_id
+                 FROM questions q
+                 JOIN games g ON g.id = q.game_id
+                 JOIN players h ON h.game_id = q.game_id AND h.role = 'hider'
+                 WHERE q.status = 'pending'
+                   AND q.answer_due_at > ?
+                   AND q.answer_due_at <= ?`,
+            )
+            .all(timestamp, threshold) as any[];
+
+        for (const reminder of reminders) {
+            const question = parseJson<any>(reminder.question_json);
+            enqueuePush(
+                { id: reminder.game_id, code: reminder.game_code },
+                reminder.hider_player_id,
+                reminder.question_id,
+                "answer_due_soon",
+                answerDueSoonPushPayload(
+                    reminder.game_code,
+                    reminder.question_id,
+                    question,
+                ),
+            );
+        }
+    };
+
     const performPushDrain = async () => {
         if (!options.pushSender) return;
+        enqueueAnswerDueSoonPushes();
         const deliveries = db
             .prepare(
                 `SELECT d.*, s.endpoint, s.p256dh, s.auth_secret
             FROM push_deliveries d JOIN push_subscriptions s
                 ON s.id = d.subscription_id AND s.player_id = d.target_player_id
-            WHERE d.status = 'pending' AND d.next_attempt_at <= ? ORDER BY d.created_at LIMIT 50`,
+            JOIN questions q ON q.id = d.question_id
+            WHERE d.status = 'pending'
+              AND d.next_attempt_at <= ?
+              AND (d.kind <> 'answer_due_soon' OR q.status = 'pending')
+            ORDER BY d.created_at LIMIT 50`,
             )
-            .all(now()) as any[];
+            .all(clock()) as any[];
         await Promise.all(
             deliveries.map(async (delivery) => {
                 try {
@@ -683,7 +789,7 @@ export async function buildApp(
                     );
                     db.prepare(
                         "UPDATE push_deliveries SET status = 'sent', sent_at = ?, last_error = NULL WHERE id = ?",
-                    ).run(now(), delivery.id);
+                    ).run(clock(), delivery.id);
                 } catch (error: any) {
                     const statusCode = Number(error?.statusCode ?? 0);
                     if (statusCode === 404 || statusCode === 410) {
@@ -992,6 +1098,20 @@ export async function buildApp(
                     body: `New ${parsed.data.question.id} question from ${player.name}`,
                     url: `/?game=${encodeURIComponent(game.code)}`,
                 });
+                enqueuePush(
+                    game,
+                    hider.id,
+                    question.id,
+                    "answer_due_soon",
+                    answerDueSoonPushPayload(
+                        game.code,
+                        question.id,
+                        parsed.data.question,
+                    ),
+                    new Date(
+                        Date.parse(question.answer_due_at) - 60_000,
+                    ).toISOString(),
+                );
             }
             db.exec("COMMIT");
         } catch (error) {
@@ -1302,6 +1422,7 @@ export async function buildApp(
                 db.prepare(
                     "UPDATE questions SET status = 'answered' WHERE id = ? AND status = 'pending'",
                 ).run(question.id);
+                cancelAnswerDueSoonPush(question.id);
                 db.prepare(
                     "INSERT INTO answers (id, question_id, responder_player_id, answer_json, created_at) VALUES (?, ?, ?, ?, ?)",
                 ).run(
@@ -1469,6 +1590,7 @@ export async function buildApp(
                 db.prepare(
                     "UPDATE questions SET status = 'answered' WHERE id = ? AND status = 'pending'",
                 ).run(question.id);
+                cancelAnswerDueSoonPush(question.id);
                 db.prepare(
                     "INSERT INTO answers (id, question_id, responder_player_id, answer_json, created_at) VALUES (?, ?, ?, ?, ?)",
                 ).run(

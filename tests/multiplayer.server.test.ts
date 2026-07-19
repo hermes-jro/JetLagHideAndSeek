@@ -152,6 +152,27 @@ describe("multiplayer server", () => {
             url: `/?game=${game.code}`,
         });
 
+        clock = "2026-07-17T12:03:59.000Z";
+        await app.drainPush();
+        expect(sent).toHaveLength(1);
+
+        clock = "2026-07-17T12:04:00.000Z";
+        await app.drainPush();
+        expect(sent).toHaveLength(2);
+        expect(sent[1].endpoint).toBe(
+            "https://push.example.test/subscription/1",
+        );
+        expect(JSON.parse(sent[1].payload)).toMatchObject({
+            kind: "answer_due_soon",
+            gameCode: game.code,
+            questionId: submittedQuestion.id,
+            title: "1 minute left",
+            body: "1 minute left to answer 1.6km radar",
+            url: `/?game=${game.code}`,
+        });
+        await app.drainPush();
+        expect(sent).toHaveLength(2);
+
         const stillPending = await app.inject({
             method: "GET",
             url: `/api/games/${game.code}/snapshot`,
@@ -208,14 +229,14 @@ describe("multiplayer server", () => {
         );
 
         await app.drainPush();
-        expect(sent).toHaveLength(3);
-        expect(new Set(sent.slice(1).map((entry) => entry.endpoint))).toEqual(
+        expect(sent).toHaveLength(4);
+        expect(new Set(sent.slice(2).map((entry) => entry.endpoint))).toEqual(
             new Set([
                 "https://push.example.test/subscription/2",
                 "https://push.example.test/subscription/3",
             ]),
         );
-        for (const delivery of sent.slice(1)) {
+        for (const delivery of sent.slice(2)) {
             expect(JSON.parse(delivery.payload)).toMatchObject({
                 kind: "answer_received",
                 gameCode: game.code,
@@ -225,6 +246,81 @@ describe("multiplayer server", () => {
                 url: `/?game=${game.code}`,
             });
         }
+    });
+
+    it("cancels the one-minute reminder when the question is answered early", async () => {
+        const sent: Array<{ endpoint: string; payload: string }> = [];
+        let clock = "2026-07-17T12:00:00.000Z";
+        const app = await buildApp({
+            databasePath: ":memory:",
+            now: () => clock,
+            pushSender: async (sub, payload) => {
+                sent.push({ endpoint: sub.endpoint, payload });
+            },
+        });
+        apps.push(app);
+
+        const created = await injectJson(app, "POST", "/api/games", {
+            name: "Hider",
+            role: "hider",
+        });
+        const seeker = (
+            await injectJson(
+                app,
+                "POST",
+                `/api/games/${created.game.code}/join`,
+                { name: "Seeker", role: "seeker" },
+            )
+        ).player;
+        await injectJson(
+            app,
+            "POST",
+            `/api/games/${created.game.code}/push-subscriptions`,
+            { playerId: created.player.id, subscription },
+        );
+        await injectJson(
+            app,
+            "POST",
+            `/api/games/${created.game.code}/push-subscriptions`,
+            {
+                playerId: seeker.id,
+                subscription: {
+                    ...subscription,
+                    endpoint: "https://push.example.test/subscription/seeker",
+                },
+            },
+        );
+        const question = (
+            await injectJson(
+                app,
+                "POST",
+                `/api/games/${created.game.code}/questions`,
+                {
+                    playerId: seeker.id,
+                    clientQuestionKey: radiusQuestion.key,
+                    question: radiusQuestion,
+                },
+            )
+        ).question;
+        await app.drainPush();
+
+        clock = "2026-07-17T12:03:00.000Z";
+        await injectJson(
+            app,
+            "POST",
+            `/api/games/${created.game.code}/questions/${question.id}/answer`,
+            {
+                playerId: created.player.id,
+                answer: { type: "radius", within: true },
+            },
+        );
+        await app.drainPush();
+        clock = "2026-07-17T12:04:00.000Z";
+        await app.drainPush();
+
+        expect(
+            sent.map((delivery) => JSON.parse(delivery.payload).kind),
+        ).toEqual(["question_received", "answer_received"]);
     });
 
     it("lets only the originating seeker un-ask a pending question", async () => {
@@ -725,6 +821,31 @@ describe("multiplayer server", () => {
             );
             CREATE UNIQUE INDEX one_pending_question_per_seeker
                 ON questions(game_id, sender_player_id) WHERE status = 'pending';
+            CREATE TABLE push_subscriptions (
+                id TEXT PRIMARY KEY,
+                player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                endpoint TEXT NOT NULL UNIQUE,
+                p256dh TEXT NOT NULL,
+                auth_secret TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE push_deliveries (
+                id TEXT PRIMARY KEY,
+                subscription_id TEXT REFERENCES push_subscriptions(id) ON DELETE SET NULL,
+                game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+                target_player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+                question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+                kind TEXT NOT NULL CHECK (kind IN ('question_received', 'answer_received')),
+                payload_json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'dead')),
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TEXT NOT NULL,
+                last_error TEXT,
+                created_at TEXT NOT NULL,
+                sent_at TEXT,
+                UNIQUE (subscription_id, kind, question_id)
+            );
         `);
         const timestamp = "2026-07-17T00:00:00.000Z";
         legacyDb
@@ -758,6 +879,35 @@ describe("multiplayer server", () => {
             timestamp,
             timestamp,
         );
+        legacyDb
+            .prepare(
+                "INSERT INTO push_subscriptions VALUES (?, ?, ?, ?, ?, ?, ?)",
+            )
+            .run(
+                "subscription",
+                seekerOneId,
+                subscription.endpoint,
+                subscription.keys.p256dh,
+                subscription.keys.auth,
+                timestamp,
+                timestamp,
+            );
+        legacyDb
+            .prepare(
+                `INSERT INTO push_deliveries
+                 (id, subscription_id, game_id, target_player_id, question_id, kind,
+                  payload_json, status, attempts, next_attempt_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, 'question_received', '{}', 'sent', 0, ?, ?)`,
+            )
+            .run(
+                "delivery",
+                "subscription",
+                "game",
+                seekerOneId,
+                "question-one",
+                timestamp,
+                timestamp,
+            );
         legacyDb.close();
 
         let app: Awaited<ReturnType<typeof buildApp>> | null = null;
@@ -785,8 +935,23 @@ describe("multiplayer server", () => {
                     "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'one_pending_question_per_game'",
                 )
                 .get();
+            const pushDeliveryTable = migratedDb
+                .prepare(
+                    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'push_deliveries'",
+                )
+                .get() as { sql: string };
+            const preservedDelivery = migratedDb
+                .prepare(
+                    "SELECT kind, status FROM push_deliveries WHERE id = 'delivery'",
+                )
+                .get();
             migratedDb.close();
             expect(gameWideIndex).toBeTruthy();
+            expect(pushDeliveryTable.sql).toContain("answer_due_soon");
+            expect(preservedDelivery).toEqual({
+                kind: "question_received",
+                status: "sent",
+            });
         } finally {
             if (app) await app.close();
             rmSync(directory, { recursive: true, force: true });

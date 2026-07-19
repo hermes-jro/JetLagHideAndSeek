@@ -17,6 +17,14 @@ describe("answer notification content and navigation", () => {
         expect(panel).toContain("toast.info(detail.message)");
     });
 
+    it("accepts the hider's one-minute answer reminder", () => {
+        expect(worker).toContain('"answer_due_soon"');
+        expect(server).toContain('title: "1 minute left"');
+        expect(server).toContain(
+            "body: `1 minute left to answer ${questionNotificationLabel(question)}`",
+        );
+    });
+
     it("opens the game page without targeting a specific question", () => {
         expect(server).not.toContain("&question=");
         expect(worker).toContain(
