@@ -325,7 +325,6 @@ const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
             z
                 .literal("electoral-boundary")
                 .describe("Electoral Boundary Question"),
-            z.literal("expressway").describe("Expressway Question"),
             // z
             //     .literal("city")
             //     .describe("Major City (1,000,000+ people) Question"),

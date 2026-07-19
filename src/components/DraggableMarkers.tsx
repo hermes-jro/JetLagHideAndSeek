@@ -19,11 +19,7 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import type { ICON_COLORS } from "@/maps/api";
-import {
-    findAdminBoundary,
-    nearestExpresswayToPoint,
-    nearestToQuestion,
-} from "@/maps/api";
+import { findAdminBoundary, nearestToQuestion } from "@/maps/api";
 
 import { LatitudeLongitude } from "./LatLngPicker";
 import {
@@ -132,11 +128,6 @@ const ColoredMarker = ({
                                     q.data.lat,
                                     q.data.lng,
                                     5,
-                                );
-                            } else if (q.data.type === "expressway") {
-                                nearest = await nearestExpresswayToPoint(
-                                    q.data.lat,
-                                    q.data.lng,
                                 );
                             } else {
                                 nearest = await nearestToQuestion(q.data);
