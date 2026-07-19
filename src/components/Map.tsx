@@ -62,6 +62,8 @@ import { MapPrint } from "./MapPrint";
 import { SimulatedSeekerTimer } from "./SimulatedSeekerTimerAnim";
 // VizPOIs moved to OptionDrawers bottom bar
 
+const STATION_DOT_PANE = "station-dots";
+
 export const Map = ({ className }: { className?: string }) => {
     useStore(additionalMapGeoLocations);
     const $mapGeoLocation = useStore(mapGeoLocation);
@@ -558,6 +560,10 @@ export const Map = ({ className }: { className?: string }) => {
     useEffect(() => {
         if (!map) return;
 
+        const stationPane =
+            map.getPane(STATION_DOT_PANE) ?? map.createPane(STATION_DOT_PANE);
+        stationPane.style.zIndex = "450";
+
         let updateTrainRadius: (() => void) | null = null;
 
         const removeTrainLayers = () => {
@@ -633,6 +639,7 @@ export const Map = ({ className }: { className?: string }) => {
                                 geoJsonPoint.properties?.color,
                         );
                         const marker = L.circleMarker(latlng, {
+                            pane: STATION_DOT_PANE,
                             radius: computeMarkerRadius(map),
                             color: color,
                             fillColor: color,
