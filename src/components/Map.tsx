@@ -60,6 +60,7 @@ import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
 import { MapPrint } from "./MapPrint";
 import { SimulatedSeekerTimer } from "./SimulatedSeekerTimerAnim";
+import { VectorBasemap } from "./VectorBasemap";
 // VizPOIs moved to OptionDrawers bottom bar
 
 const STATION_DOT_PANE = "station-dots";
@@ -370,16 +371,7 @@ export const Map = ({ className }: { className?: string }) => {
                         />
                     </>
                 )}
-                {$mapTileStyle === "street" && (
-                    <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
-                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                        subdomains="abcd"
-                        maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
-                        minZoom={2}
-                        noWrap
-                    />
-                )}
+                {$mapTileStyle === "street" && <VectorBasemap />}
                 <DraggableMarkers />
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
