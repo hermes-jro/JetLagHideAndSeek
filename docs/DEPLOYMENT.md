@@ -9,7 +9,7 @@ The frontend is a static Astro build served by Nginx. The multiplayer backend ru
 - A Linux host with DNS for `map.jro.sg` pointing to it.
 - Ports 80 and 443 reachable according to the host’s firewall/security-group policy. This guide does not alter firewall rules.
 - Git.
-- Node.js 22 and pnpm 10.34.5.
+- Node.js 24.22.1 and pnpm 10.34.5.
 - Docker Engine with the Compose plugin, or a compatible Compose implementation.
 - Nginx.
 - Certbot.
